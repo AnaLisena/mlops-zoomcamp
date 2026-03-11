@@ -1,0 +1,111 @@
+import os
+import pickle
+import click
+import mlflow
+
+from mlflow.entities import ViewType
+from mlflow.tracking import MlflowClient
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import root_mean_squared_error
+
+HPO_EXPERIMENT_NAME = "random-forest-hyperopt"
+EXPERIMENT_NAME = "random-forest-best-models"
+RF_PARAMS = ['max_depth', 'n_estimators', 'min_samples_split', 'min_samples_leaf', 'random_state']
+
+print("Setting tracking URI...")
+mlflow.set_tracking_uri("http://127.0.0.1:5000")
+print("Setting experiment...")
+mlflow.set_experiment(EXPERIMENT_NAME)
+print("Disabling autolog to avoid hanging...")
+# mlflow.sklearn.autolog()  # disable to avoid hanging issues
+
+
+def load_pickle(filename):
+    with open(filename, "rb") as f_in:
+        return pickle.load(f_in)
+
+
+def train_and_log_model(data_path, params):
+    print(f"Loading data from {data_path}...")
+    X_train, y_train = load_pickle(os.path.join(data_path, "train.pkl"))
+    X_val, y_val = load_pickle(os.path.join(data_path, "val.pkl"))
+    X_test, y_test = load_pickle(os.path.join(data_path, "test.pkl"))
+
+    with mlflow.start_run():
+        new_params = {}
+        for param in RF_PARAMS:
+            new_params[param] = int(params[param])
+
+        print(f"Training model with params: {new_params}")
+        rf = RandomForestRegressor(**new_params)
+        rf.fit(X_train, y_train)
+
+        # Evaluate model on the validation and test sets
+        val_rmse = root_mean_squared_error(y_val, rf.predict(X_val))
+        mlflow.log_metric("val_rmse", val_rmse)
+        test_rmse = root_mean_squared_error(y_test, rf.predict(X_test))
+        mlflow.log_metric("test_rmse", test_rmse)
+        
+        # Save the model artifact
+        mlflow.sklearn.log_model(rf, artifact_path="model")
+        print(f"Model logged with test_rmse: {test_rmse}")
+
+
+@click.command()
+@click.option(
+    "--data_path",
+    default="./output",
+    help="Location where the processed NYC taxi trip data was saved"
+)
+@click.option(
+    "--top_n",
+    default=5,
+    type=int,
+    help="Number of top models that need to be evaluated to decide which one to promote"
+)
+def run_register_model(data_path: str, top_n: int):
+
+    print("Creating MLflow client...")
+    client = MlflowClient()
+
+    # Retrieve the top_n model runs and log the models
+    print(f"Searching for top {top_n} runs from {HPO_EXPERIMENT_NAME}...")
+    experiment = client.get_experiment_by_name(HPO_EXPERIMENT_NAME)
+    print(f"Found experiment: {experiment}")
+    runs = client.search_runs(
+        experiment_ids=experiment.experiment_id,
+        run_view_type=ViewType.ACTIVE_ONLY,
+        max_results=top_n,
+        order_by=["metrics.rmse ASC"]
+    )
+    print(f"Found {len(runs)} runs")
+    for i, run in enumerate(runs):
+        print(f"Training model {i+1}/{len(runs)}...")
+        train_and_log_model(data_path=data_path, params=run.data.params)
+
+    # Select the model with the lowest test RMSE
+    print(f"Searching for best model in {EXPERIMENT_NAME}...")
+    experiment = client.get_experiment_by_name(EXPERIMENT_NAME)
+    best_runs = client.search_runs(
+        experiment_ids=experiment.experiment_id,
+        run_view_type=ViewType.ACTIVE_ONLY,
+        max_results=1,
+        order_by=["metrics.test_rmse ASC"],
+    )
+    if not best_runs:
+        print("No runs found in experiment", EXPERIMENT_NAME)
+        return
+
+    best_run = best_runs[0]
+    best_run_id = best_run.info.run_id
+
+    # Register the best model to the registry
+    print(f"Registering best model with run_id: {best_run_id}...")
+    model_uri = f"runs:/{best_run_id}/model"
+    model_name = "random-forest-best"
+    mlflow.register_model(model_uri=model_uri, name=model_name)
+    print(f"Registered model {model_name} from run {best_run_id}")
+
+
+if __name__ == '__main__':
+    run_register_model()
