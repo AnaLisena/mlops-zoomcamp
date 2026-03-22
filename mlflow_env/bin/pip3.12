@@ -1,4 +1,4 @@
-#!/workspaces/mlops-zoomcamp/mlflow_env/bin/python3
+#!/workspaces/mlops-zoomcamp/mlflow_env/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys

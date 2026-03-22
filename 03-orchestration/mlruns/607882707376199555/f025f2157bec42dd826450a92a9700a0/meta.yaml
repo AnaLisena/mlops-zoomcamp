@@ -1,0 +1,14 @@
+artifact_uri: file:///workspaces/mlops-zoomcamp/03-orchestration/mlruns/607882707376199555/f025f2157bec42dd826450a92a9700a0/artifacts
+end_time: 1774217155037
+entry_point_name: ''
+experiment_id: '607882707376199555'
+lifecycle_stage: active
+run_id: f025f2157bec42dd826450a92a9700a0
+run_name: peaceful-penguin-919
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1774217150816
+status: 3
+tags: []
+user_id: codespace
