@@ -39,10 +39,13 @@ Now we need to install `pytest`:
 pipenv install --dev pytest
 ```
 
+pipenv --python /home/codespace/.python/current/bin/python3 && pipenv install --dev pytest
+PS1="> "
+
 Next, create a folder `tests` and create two files. One will be
 the file with tests. We can name it `test_batch.py`. 
 
-What should be the other file? 
+What should be the other file? - __init__.py
 
 Hint: to be able to test `batch.py`, we need to be able to
 import it. Without this other file, we won't be able to do it.
@@ -95,10 +98,8 @@ The same is true for Pandas Series. Also, a DataFrame could be turned into a lis
 
 How many rows should be there in the expected dataframe?
 
-* 1
+
 * 2
-* 3
-* 4
 
 
 ## Q4. Mocking S3 with Localstack 
@@ -119,6 +120,12 @@ With AWS CLI, this is how we create a bucket:
 aws s3 mb s3://nyc-duration
 ```
 
+cd /workspaces/mlops-zoomcamp/06-best-practices/homework && docker compose down && docker compose up -d && sleep 6 && docker compose ps && export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-1 && pipenv run aws s3 mb s3://nyc-duration --endpoint-url=http://localhost:4566 && pipenv run aws s3 ls --endpoint-url=http://localhost:4566
+
+export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=us-east-1 && pipenv run aws s3 ls --endpoint-url=http://localhost:4566
+
+pipenv run aws s3 mb s3://nyc-duration --endpoint-url=http://localhost:4566
+
 Then we need to check that the bucket was successfully created. With AWS, this is how we typically do it:
 
 ```bash
@@ -127,11 +134,7 @@ aws s3 ls
 
 In both cases we should adjust commands for localstack. What option do we need to use for such purposes?
 
-* `--backend-store-uri`
-* `--profile`
 * `--endpoint-url`
-* `--version`
-
 
 ## Make input and output paths configurable
 
@@ -167,6 +170,9 @@ def main(year, month):
     output_file = get_output_path(year, month)
     # rest of the main function ... 
 ```
+
+
+export INPUT_FILE_PATTERN='s3://nyc-duration/in/{year:04d}-{month:02d}.parquet' OUTPUT_FILE_PATTERN='s3://nyc-duration/out/{year:04d}-{month:02d}.parquet' && pipenv run python -c "import batch; print(batch.get_input_path(2023,1)); print(batch.get_output_path(2023,1))"
 
 
 ## Reading from Localstack S3 with Pandas
@@ -222,9 +228,6 @@ df_input.to_parquet(
 What's the size of the file?
 
 * 3620
-* 23620
-* 43620
-* 63620
 
 Note: it's important to use the code from the snippet for saving
 the file. Otherwise the size may be different depending on the OS,
@@ -252,11 +255,19 @@ verify the result is correct.
 
 What's the sum of predicted durations for the test dataframe?
 
-* 13.08
 * 36.28
-* 69.28
-* 81.08
 
+
+Localstack
+docker compose up -d
+
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+export AWS_DEFAULT_REGION=us-east-1
+export S3_ENDPOINT_URL=http://localhost:4566
+export INPUT_FILE_PATTERN='s3://nyc-duration/in/{year:04d}-{month:02d}.parquet'
+export OUTPUT_FILE_PATTERN='s3://nyc-duration/out/{year:04d}-{month:02d}.parquet'
+pipenv run python integration_test.py
 
 ## Running the test (ungraded)
 
